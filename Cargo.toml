@@ -1,0 +1,6 @@
+[workspace]
+
+members = [
+  "cryocat",
+  "cryocat-server",
+]
