@@ -5,7 +5,7 @@ mod error;
 use std::{collections::{hash_map::Entry, HashMap}, sync::Arc};
 
 use anyhow::Result;
-use axum::{body::Bytes, extract::{ws::WebSocket, State, WebSocketUpgrade}, response::IntoResponse, routing::get, serve, Router};
+use axum::{extract::{ws::{Message, WebSocket}, State, WebSocketUpgrade}, response::IntoResponse, routing::get, serve, Router};
 use cryocat_common::Packet;
 use error::CryoError;
 use tokio::{net::TcpListener, select, sync::{broadcast, mpsc, Mutex}};
@@ -15,7 +15,7 @@ use tracing::error;
 struct Conn {
     disconnect: broadcast::Sender<()>,
     // will be None if channel has established
-    channel: Option<(mpsc::Sender<Bytes>, mpsc::Receiver<Bytes>)>
+    channel: Option<(mpsc::Sender<Message>, mpsc::Receiver<Message>)>
 }
 
 #[derive(Debug, Default)]
@@ -59,8 +59,8 @@ async fn ws(socket: &mut WebSocket, state: Arc<AppState>) -> Result<()> {
     let mut id: Option<String> = None;
     let mut disconnect_tx: Option<broadcast::Sender<()>> = None;
     let mut disconnect_rx: Option<broadcast::Receiver<()>> = None;
-    let mut channel_tx: Option<mpsc::Sender<Bytes>> = None;
-    let mut channel_rx: Option<mpsc::Receiver<Bytes>> = None;
+    let mut channel_tx: Option<mpsc::Sender<Message>> = None;
+    let mut channel_rx: Option<mpsc::Receiver<Message>> = None;
 
     let result: Result<()> = try {
         loop {
@@ -102,14 +102,14 @@ async fn ws(socket: &mut WebSocket, state: Arc<AppState>) -> Result<()> {
                         (None, _) | (Some(_), Packet::Start(_)) => Err(CryoError::UnexpectedPacket)?,
                         (Some(_), packet) => {
                             channel_tx.as_ref().unwrap()
-                                .send(Bytes::from(packet.to_json()?)).await?;
+                                .send(Message::text(packet.to_json()?)).await?;
                         },
                     }
                 },
                 Some(data) = as_async(channel_rx.as_mut().map(|rx| rx.recv())) => {
                     match data {
                         None => Err(CryoError::WebSocketClosed)?,
-                        Some(data) => channel_tx.as_ref().unwrap().send(data).await?,
+                        Some(data) => socket.send(data).await?,
                     };
                 },
                 Some(disconnect) = as_async(disconnect_rx.as_mut().map(|rx| rx.recv())) => {
