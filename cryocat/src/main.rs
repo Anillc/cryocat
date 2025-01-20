@@ -4,30 +4,54 @@ mod error;
 use std::sync::Arc;
 
 use anyhow::Result;
+use clap::{ArgAction, Parser};
 use cryocat_common::Packet;
 use error::CryoError;
 use futures_util::{SinkExt, StreamExt};
 use tokio::{io::{AsyncReadExt, AsyncWriteExt, Stdin}, select, sync::Mutex};
 use tokio_tungstenite::{connect_async, tungstenite::{Bytes, Message}};
-use tracing::error;
+use tracing::{error, Level};
 use tracing_subscriber::util::SubscriberInitExt;
 use webrtc::{api::{interceptor_registry::register_default_interceptors, media_engine::MediaEngine, APIBuilder}, data_channel::RTCDataChannel, ice_transport::{ice_connection_state::RTCIceConnectionState, ice_server::RTCIceServer}, interceptor::registry::Registry, peer_connection::{configuration::RTCConfiguration, RTCPeerConnection}};
 
+#[derive(Debug, Parser, Clone)]
+struct Args {
+    #[arg(short, long, action = ArgAction::Count)]
+    verbose: u8,
+    #[arg(short = 'e', long, env = "SERVER")]
+    server: String,
+    #[arg(short, long, env = "STUN")]
+    stun: String,
+    #[arg(short, long, env = "TURN")]
+    turn: String,
+    #[arg(short = 'u', long, env = "TURN_USERNAME")]
+    turn_username: String,
+    #[arg(short = 'c', long, env = "TURN_CREDENTIAL")]
+    turn_credential: String,
+    id: String,
+}
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    tracing_subscriber::fmt().with_writer(std::io::stderr).finish().init();
+    let args = Args::parse();
+    let level = match args.verbose {
+        0 => Level::ERROR,
+        1 => Level::INFO,
+        2 => Level::DEBUG,
+        _ => Level::TRACE,
+    };
+    tracing_subscriber::fmt()
+        .with_writer(std::io::stderr)
+        .with_max_level(level)
+        .finish().init();
 
-    let url = "ws://localhost:3000";
-    let id = "1145141919810";
-
-    let rtc = create_rtc_connection().await?;
+    let rtc = create_rtc_connection(args.clone()).await?;
     let (channel_tx, mut channel) = tokio::sync::mpsc::channel::<Arc<RTCDataChannel>>(1);
 
-    let (ws, _) = connect_async(url).await?;
+    let (ws, _) = connect_async(args.server).await?;
     let (mut write, mut read) = ws.split();
 
-    let start = Packet::Start(id.to_string()).to_json()?;
+    let start = Packet::Start(args.id).to_json()?;
     write.send(Message::text(start)).await?;
 
     let packet = match read.next().await {
@@ -80,8 +104,7 @@ async fn main() -> Result<()> {
                     write.send(message).await?;
                 };
                 if let Err(err) = result {
-                    let err = err.to_string();
-                    error!(err);
+                    error!("{}", err.to_string());
                 }
             }
         })
@@ -155,7 +178,7 @@ async fn main() -> Result<()> {
     Ok(())
 }
 
-async fn create_rtc_connection() -> Result<Arc<RTCPeerConnection>> {
+async fn create_rtc_connection(args: Args) -> Result<Arc<RTCPeerConnection>> {
     let mut media_engine = MediaEngine::default();
     media_engine.register_default_codecs()?;
     let mut registry = Registry::new();
@@ -165,7 +188,17 @@ async fn create_rtc_connection() -> Result<Arc<RTCPeerConnection>> {
         .with_interceptor_registry(registry)
         .build();
     let config = RTCConfiguration {
-        ice_servers: vec![],
+        ice_servers: vec![
+            RTCIceServer {
+                urls: vec![format!("stun:{}", args.stun)],
+                ..Default::default()
+            },
+            RTCIceServer {
+                urls: vec![format!("turn:{}", args.turn)],
+                username: args.turn_username,
+                credential : args.turn_credential,
+            }
+        ],
         ..Default::default()
     };
     Ok(Arc::new(api.new_peer_connection(config).await?))

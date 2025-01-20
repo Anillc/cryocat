@@ -1,15 +1,24 @@
 #![feature(try_blocks)]
-
 mod error;
 
 use std::{collections::{hash_map::Entry, HashMap}, sync::Arc};
 
 use anyhow::Result;
 use axum::{extract::{ws::{Message, WebSocket}, State, WebSocketUpgrade}, response::IntoResponse, routing::get, serve, Router};
+use clap::{ArgAction, Parser};
 use cryocat_common::Packet;
 use error::CryoError;
 use tokio::{net::TcpListener, select, sync::{broadcast, mpsc, Mutex}};
-use tracing::error;
+use tracing::{error, info, Level};
+use tracing_subscriber::util::SubscriberInitExt;
+
+#[derive(Debug, Parser)]
+struct Args {
+    #[arg(short, long, action = ArgAction::Count)]
+    verbose: u8,
+    #[arg(short, long, default_value = "0.0.0.0:47965")]
+    bind: String,
+}
 
 #[derive(Debug)]
 struct Conn {
@@ -25,7 +34,16 @@ struct AppState {
 
 #[tokio::main]
 async fn main() {
-    tracing_subscriber::fmt::init();
+    let args = Args::parse();
+    let level = match args.verbose {
+        0 => Level::INFO,
+        1 => Level::DEBUG,
+        _ => Level::TRACE,
+    };
+    tracing_subscriber::fmt()
+        .with_writer(std::io::stdout)
+        .with_max_level(level)
+        .finish().init();
 
     let state = Arc::new(AppState {
         ..Default::default()
@@ -35,8 +53,9 @@ async fn main() {
         .route("/", get(ws_handler))
         .with_state(state.clone());
 
-    let listener = TcpListener::bind("0.0.0.0:3000").await
-        .expect("failed to listen 0.0.0.0:3000");
+    let listener = TcpListener::bind(args.bind.clone()).await
+        .expect(format!("failed to listen {}", args.bind.clone()).as_str());
+    info!("listening on {}", args.bind);
     serve(listener, app).await.expect("failed to start app");
 }
 
@@ -48,8 +67,7 @@ async fn ws_handler(
         match ws(&mut socket, state).await {
             Ok(_) => {},
             Err(err) => {
-                let err = err.to_string();
-                error!(err);
+                error!("{}", err.to_string());
             },
         };
     })

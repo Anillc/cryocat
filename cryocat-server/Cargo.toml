@@ -11,3 +11,4 @@ tracing = "0.1.41"
 tracing-subscriber = "0.3.19"
 anyhow = { version = "1.0.95", features = ["backtrace"] }
 thiserror = "2.0.11"
+clap = { version = "4.5.26", features = ["derive"] }
