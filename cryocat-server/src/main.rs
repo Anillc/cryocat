@@ -16,7 +16,7 @@ use tracing_subscriber::util::SubscriberInitExt;
 struct Args {
     #[arg(short, long, action = ArgAction::Count)]
     verbose: u8,
-    #[arg(short, long, default_value = "0.0.0.0:47965")]
+    #[arg(short, long, default_value = "0.0.0.0:80")]
     bind: String,
 }
 
