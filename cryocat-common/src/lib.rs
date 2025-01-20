@@ -1,13 +1,14 @@
 
 use anyhow::{Ok, Result};
 use serde::{Deserialize, Serialize};
+use webrtc::{ice_transport::ice_candidate::RTCIceCandidateInit, peer_connection::sdp::session_description::RTCSessionDescription};
 
 pub type Id = String;
 pub type Offer = bool;
 
 #[derive(Serialize, Deserialize)]
 pub enum Packet {
-    Start(Id), Description(Offer, String), Candidate(String),
+    Start(Id), RequestOffer, Offer(RTCSessionDescription), Answer(RTCSessionDescription), Candidate(RTCIceCandidateInit),
 }
 
 impl Packet {

@@ -90,6 +90,7 @@ async fn ws(socket: &mut WebSocket, state: Arc<AppState>) -> Result<()> {
                                     let (tx_2, rx_2) = mpsc::channel(10);
                                     channel_tx = Some(tx_1);
                                     channel_rx = Some(rx_2);
+                                    socket.send(Message::text(Packet::RequestOffer.to_json()?)).await?;
                                     entry.insert(Conn {
                                         disconnect: broadcast::channel(1).0,
                                         channel: Some((tx_2, rx_1)),

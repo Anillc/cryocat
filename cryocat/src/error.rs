@@ -6,6 +6,8 @@ pub enum CryoError {
     WebSocketClosed,
     #[error("unexpected packet")]
     UnexpectedPacket,
-    #[error("channel exists")]
-    ChannelExists,
+    #[error("eof")]
+    EOF,
+    #[error("unexpected error")]
+    UnexpectedError,
 }
