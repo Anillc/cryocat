@@ -71,13 +71,14 @@ async fn ws(socket: &mut WebSocket, state: Arc<AppState>) -> Result<()> {
                     match (&id, packet) {
                         // new connection
                         (None, Packet::Start(new_id)) => {
-                            id = Some(new_id.clone());
                             let mut conns = state.conns.lock().await;
-                            let conn = match conns.entry(new_id) {
+                            let conn = match conns.entry(new_id.clone()) {
                                 Entry::Occupied(entry) => {
                                     let conn = entry.into_mut();
                                     match conn.channel.take() {
                                         Some((tx, rx)) => {
+                                            // set id here to avoid entry removing
+                                            id = Some(new_id);
                                             channel_tx = Some(tx);
                                             channel_rx = Some(rx);
                                         },
@@ -88,6 +89,7 @@ async fn ws(socket: &mut WebSocket, state: Arc<AppState>) -> Result<()> {
                                 Entry::Vacant(entry) => {
                                     let (tx_1, rx_1) = mpsc::channel(10);
                                     let (tx_2, rx_2) = mpsc::channel(10);
+                                    id = Some(new_id);
                                     channel_tx = Some(tx_1);
                                     channel_rx = Some(rx_2);
                                     socket.send(Message::text(Packet::RequestOffer.to_json()?)).await?;

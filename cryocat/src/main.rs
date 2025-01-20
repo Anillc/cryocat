@@ -10,18 +10,18 @@ use futures_util::{SinkExt, StreamExt};
 use tokio::{io::{AsyncReadExt, AsyncWriteExt, Stdin}, select, sync::Mutex};
 use tokio_tungstenite::{connect_async, tungstenite::{Bytes, Message}};
 use tracing::error;
+use tracing_subscriber::util::SubscriberInitExt;
 use webrtc::{api::{interceptor_registry::register_default_interceptors, media_engine::MediaEngine, APIBuilder}, data_channel::RTCDataChannel, ice_transport::{ice_connection_state::RTCIceConnectionState, ice_server::RTCIceServer}, interceptor::registry::Registry, peer_connection::{configuration::RTCConfiguration, RTCPeerConnection}};
 
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    tracing_subscriber::fmt::init();
+    tracing_subscriber::fmt().with_writer(std::io::stderr).finish().init();
 
     let url = "ws://localhost:3000";
     let id = "1145141919810";
 
     let rtc = create_rtc_connection().await?;
-    // rtc.gathering_complete_promise().await;
     let (channel_tx, mut channel) = tokio::sync::mpsc::channel::<Arc<RTCDataChannel>>(1);
 
     let (ws, _) = connect_async(url).await?;
