@@ -1,7 +1,8 @@
 #![feature(try_blocks)]
+#![feature(async_closure)]
 mod error;
 
-use std::{collections::{hash_map::Entry, HashMap}, sync::Arc};
+use std::{collections::{hash_map::Entry, HashMap}, future::Future, sync::Arc};
 
 use anyhow::Result;
 use axum::{extract::{ws::{Message, WebSocket}, State, WebSocketUpgrade}, response::IntoResponse, routing::get, serve, Router};
