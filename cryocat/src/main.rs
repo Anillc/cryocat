@@ -31,6 +31,7 @@ struct Args {
     turn_username: String,
     #[arg(short = 'c', long, env = "TURN_CREDENTIAL")]
     turn_credential: String,
+    #[arg(env = "CRYOCAT_ID")]
     id: String,
 }
 
